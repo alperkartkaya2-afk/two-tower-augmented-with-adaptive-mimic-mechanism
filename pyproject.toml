@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "two-tower-amm"
+version = "0.1.0"
+description = "Two-tower recommender scaffold with adaptive mimic mechanism extensions."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Alper" }
+]
+dependencies = [
+  "numpy>=1.24,<3.0",
+  "pandas>=2.0,<3.0",
+  "pyyaml>=6.0",
+  "scikit-learn>=1.3,<2.0",
+  "scipy>=1.10,<2.0",
+  "loguru>=0.7,<0.8",
+  "torch>=2.0,<3.0",
+  "tqdm>=4.65,<5.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0,<9.0",
+  "black>=23.0,<25.0",
+  "ruff>=0.4,<0.6"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

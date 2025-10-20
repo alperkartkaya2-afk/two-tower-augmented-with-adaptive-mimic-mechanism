@@ -1,0 +1,83 @@
+experiment:
+  name: "baseline_two_tower"
+  seed: 1234
+
+data:
+  root: "data"
+  books_file: "books.csv"
+  users_file: "users.csv"
+  cache_dir: "artifacts/cache"
+  train_fraction: 0.9
+  books_limit: null
+  interactions_limit: null
+  min_user_interactions: 5
+  min_item_interactions: 10
+  feature_params:
+    numeric_columns: ["average_rating", "price", "rating_number"]
+    category_top_k: 300
+    author_top_k: 300
+    user_aggregation: "mean"
+
+model:
+  user_encoder:
+    type: tower
+    id_embedding:
+      params:
+        embedding_dim: 96
+        sparse: true
+      init:
+        type: normal
+        std: 0.02
+    feature_encoder:
+      type: mlp
+      hidden_dims: [192]
+      activation: relu
+      output_dim: 96
+      dropout: 0.1
+    fusion: adaptive_mimic
+    output_dim: 96
+  item_encoder:
+    type: tower
+    id_embedding:
+      params:
+        embedding_dim: 96
+        sparse: true
+      init:
+        type: normal
+        std: 0.02
+    feature_encoder:
+      type: mlp
+      hidden_dims: [192]
+      activation: relu
+      output_dim: 96
+      dropout: 0.1
+    fusion: adaptive_mimic
+    output_dim: 96
+  similarity: "cosine"
+  device: "cpu"
+
+training:
+  batch_size: 512
+  num_epochs: 10
+  learning_rate: 0.001
+  weight_decay: 0.0
+  optimizer: "adam"
+  negatives_per_positive: 5
+
+evaluation:
+  metrics_k: [5, 10, 20]
+  candidate_samples: 500
+  holdout: "latest_per_user"
+
+recommendations:
+  sample_users: 3
+  top_k: 5
+
+diagnostics:
+  item_sample_size: 50
+  user_sample_size: 500
+  neighbor_k: 5
+  report_path: "artifacts/reports/recommendation_report.md"
+
+logging:
+  level: "INFO"
