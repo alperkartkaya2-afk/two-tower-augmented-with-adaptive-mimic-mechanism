@@ -18,7 +18,7 @@ Lean project scaffold for building a production-ready two-tower recommender tail
 
 ## Getting Started
 1. Create and activate a Python environment (>=3.10 recommended).
-2. Install dependencies via `pip install -e .` once `pyproject.toml` is populated.
+2. Install dependencies via `pip install -e .[dev]` to pull the CPU-only toolchain (PyTorch CPU build plus lint/test tooling). Add the `gpu` extra and point pip at the CUDA wheel index if you need GPU acceleration.
 3. Run `python scripts/preprocess.py --config configs/default.yaml` to inspect indexed artefacts (serialization hooks forthcoming).
 4. Train and evaluate the model using `python scripts/train.py --config configs/default.yaml`.
 
@@ -35,8 +35,14 @@ Lean project scaffold for building a production-ready two-tower recommender tail
    ```
 3. **Install dependencies**
    ```bash
+   # CPU-only (default PyPI wheels)
    pip install -e .[dev]
+
+   # GPU-enabled (pick the CUDA version that matches your driver)
+   pip install -e .[dev,gpu] --extra-index-url https://download.pytorch.org/whl/cu121
    ```
+   > The `gpu` extra expects the PyTorch-provided CUDA wheels. Adjust the `--extra-index-url` to the appropriate CUDA tag (cu118, cu121, cu124, ...) per the [official install matrix](https://pytorch.org/get-started/locally/).
+   > Need only runtime dependencies? Use `pip install -e .[cpu]` instead of the `dev` extra.
 4. **Place data files**  
    Copy `books.csv` and `users.csv` (or the trimmed samples) into the `data/` directory—these large files are not tracked in git.
 5. **Preprocess & sanity-check**
@@ -67,3 +73,6 @@ Lean project scaffold for building a production-ready two-tower recommender tail
 - Benchmark large-scale runs (SparseAdam vs. hybrid optimisers) and tune embedding/feature dimensions.
 - Add checkpointing, early stopping, and hyperparameter sweeps to `src/pipelines/training.py`.
 - Expand automated tests and add fixtures covering recommendation reports, per-user metrics, and embedding diagnostics.
+
+## A Critique of The Model
+https://chatgpt.com/s/68fa36e8f18c8191a04447aca5e9e98d

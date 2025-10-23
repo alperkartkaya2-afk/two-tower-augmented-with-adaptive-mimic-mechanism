@@ -1,16 +1,16 @@
 # How Does It Work?
 
-This guide explains the project end-to-end: where the data comes from, how it is transformed, what the two-tower model does, how we train it, and how we evaluate/interpret the results. Treat it as a living manual for engineers, data scientists, and product stakeholders.
+This guide explains the project end-to-end: where the data comes from, how it is transformed, what the two‑tower model does, how we train it, and how we evaluate/interpret the results. Treat it as a living manual for engineers, data scientists, and product stakeholders.
 
 > **In a hurry?**
 > - Data → indexed & filtered → feature tensors  
-> - Towers → ID embeddings + metadata encoders with adaptive mimic fusion  
-> - Training → sampled BCE with hybrid optimisers  
+> - Towers → ID embeddings + metadata encoders with adaptive‑mimic fusion  
+> - Training → sampled BCE with hybrid optimizers  
 > - Evaluation → ranking metrics, embedding diagnostics, feature correlations, qualitative audits → Markdown report
 
 ---
 
-## 1. System Overview
+## 1) System Overview
 
 ```mermaid
 flowchart LR
@@ -23,77 +23,76 @@ flowchart LR
     G --> H[Report<br/>artifacts/reports/*.md]
 ```
 
-Each step is covered below with “technical nuts & bolts” and “why it matters” callouts.
+Each step below includes **tech details** and **why it matters** callouts.
 
 ---
 
-## 2. Data Layer
+## 2) Data Layer
 
 | Component | What it does | Why it matters |
-|-----------|--------------|----------------|
-| **Raw CSVs** (`data/books.csv`, `data/users.csv`) | Amazon kitap metaverisi + kullanıcı etkileşimleri | Git’e alınmıyor; herkes dosyaları yerel olarak sağlamalı. Trimmed versiyonlar hızlı denemeler içindir. |
-| **Configuration** (`configs/default.yaml:data`) | Dosya yolları, satır limitleri (`books_limit`, `interactions_limit`), min etkileşim eşikleri, özellik parametreleri | Tek yerden deney yönetimi; farklı senaryolar için YAML kopyalayabilirsiniz. |
-| **Loaders** (`src/data/loaders.py`) | CSV okur, limit uygular, kitap tablosunda bulunmayan etkileşimleri log’layarak eler | Veri bütünlüğü için “referanssız etkileşim” kalmaz. |
-| **Preprocessing** (`src/data/preprocessing.py`) | Etkileşimleri temizler, min kullanıcı/ürün frekans eşiklerini iteratif uygular, indeks map’leri + özellik matrisleri üretir, `TrainingDataset` döner | Gürültülü (çok az etkileşimi olan) kullanıcı/ürünleri temizlemek doğruluğu artırır ve hesaplamayı ucuzlatır. |
-| **Feature Engineering** (`src/data/features.py`) | Nümerik z-skorlar, başlık kelime/karakter istatistikleri, kategori & yazar sinyalleri, kullanıcı özetleri | Metadata sinyallerini modele taşır; cold-start durumlarında hayat kurtarır. |
-| **Helpers** (`indexers`, `datasets`, `samplers`) | Map yapıları, PyTorch `Dataset`, negatif örnekleme | Eğitim ve değerlendirme döngülerinin temel taşı. |
+|---|---|---|
+| **Raw CSVs** (`data/books.csv`, `data/users.csv`) | Amazon book metadata + user interactions. | Not checked into Git; everyone should provide them locally. Trimmed versions exist for fast iteration. |
+| **Configuration** (`configs/default.yaml:data`) | File paths, row limits (`books_limit`, `interactions_limit`), minimum interaction thresholds, feature parameters. | Single source of truth for experiments; clone YAMLs for different scenarios. |
+| **Loaders** (`src/data/loaders.py`) | Reads CSVs, applies limits, and drops interactions that reference missing books, with logging. | Prevents orphaned interactions and maintains data integrity. |
+| **Preprocessing** (`src/data/preprocessing.py`) | Cleans interactions; iteratively enforces min user/item frequency; builds index maps + feature matrices; returns a `TrainingDataset`. | Prunes noisy (ultra‑sparse) users/items, improving both quality and compute cost. |
+| **Feature Engineering** (`src/data/features.py`) | Numeric z‑scores; title word/character stats; category & author signals; user aggregates. | Surfaces metadata signals to the model; crucial for cold‑start. |
+| **Helpers** (`indexers`, `datasets`, `samplers`) | Index maps, PyTorch `Dataset`, negative sampling. | Backbone for the training/evaluation loops. |
 
 > **Why this design?**  
-> Bütün veriyi GPU/CPU’ya körlemesine yüklemek yerine, hızlıca örnekleyip filtreliyor; böylece ilk denemelerde bile dakikalar içinde sonuca ulaşabiliyoruz.
+> Instead of blindly loading all data to GPU/CPU, we sample and filter early to get feedback in minutes—even on the first runs.
 
 ---
 
-## 3. Model Layer
+## 3) Model Layer
 
-### Two-Tower Architecture (`src/models`)
+### Two‑Tower Architecture (`src/models`)
 
-| Parça | Teknik Özet | Önemi |
-|-------|-------------|-------|
-| **ID Embeddings** (`build_id_embedding`) | Kullanıcı ve ürün için 96 boyutlu, sparse destekli embedding tabloları | Kolayca ölçeklenebilir; SparseAdam ile bellek dostu |
-| **Feature Encoders** (`build_feature_encoder`) | Metadata vektörünü 192 → 96 MLP ile kodlar (dropout opsiyonlu) | Metadata ile collaborative sinyalleri dengelememize yardımcı |
-| **Adaptive Mimic** (`AdaptiveMimicModule`) | ID + metadata embedding’lerini kapı (gate) ağıyla birleştirir | Cold-start kullanıcı/ürünlerde en önemli hamle |
-| **Tower Wrapper** (`TowerEncoder`) | Fusion modu (`identity/sum/concat/adaptive_mimic`) + cihaz yönetimi | Config üzerinden kule mimarisini değiştirmeyi basitleştirir |
-| **TwoTowerModel** | İki kuleyi tek arayüzde buluşturur, benzerlik (cosine veya dot) döner | Eğitim/evaluation kodu kulelerin detayını bilmek zorunda değil |
+| Piece | Technical summary | Why it matters |
+|---|---|---|
+| **ID Embeddings** (`build_id_embedding`) | 96‑dim tables for users/items; `sparse=True` supported. | Scales easily; memory‑friendly with `SparseAdam`. |
+| **Feature Encoders** (`build_feature_encoder`) | Encodes metadata vectors via MLP 192 → 96 (optional dropout). | Balances collaborative signals with metadata. |
+| **Adaptive Mimic** (`AdaptiveMimicModule`) | Fuses ID + metadata embeddings via a learned gate. | Especially strong for cold‑start users/items. |
+| **Tower Wrapper** (`TowerEncoder`) | Fusion mode (`identity`/`sum`/`concat`/`adaptive_mimic`) + device management. | Lets you swap tower fusion via config—not code edits. |
+| **TwoTowerModel** | Couples both towers and returns similarity (cosine or dot). | Train/eval code stays agnostic to tower internals. |
 
-**Technical note:**  
-Sparseli embedding’ler için `padding_idx`, `max_norm` gibi opsiyonlar var; ama `sparse=True` iken `max_norm` kullanamazsınız. Config bu kombinasyonları kontrol eder.
+> **Technical note:** With sparse embeddings, you can use `padding_idx`, but **do not** combine `sparse=True` with `max_norm`—PyTorch disallows that. Configuration guards against illegal combos.
 
 ---
 
-## 4. Training & Evaluation Pipeline
+## 4) Training & Evaluation Pipeline
 
 ### 4.1 Training (`src/pipelines/training.py`)
 
-1. **Seed & Config Parse** – reproducible deneyler için `experiment.seed`.
-2. **Dataset Build** – min etkileşim eşikleri, özellik matrisleri, log’lar.
-3. **Train/Validation Split** – kullanıcı başına en son etkileşimi validation’a ayırır (timestamp yoksa uyarı verir ve validation’ı atlar).
-4. **Tower Construction** – config → builder → `TowerEncoder` (boyutlar log’lanır).
-5. **Optimiser Setup** – dense parametreler için Adam/AdamW/SGD, embedding’ler için SparseAdam.
-6. **Mini-batch Loop**  
-   - Negatif örnekleme (`sample_negative_items`)  
-   - Kullanıcı/ürün embedding’leri, pozitif & negatif logit hesapları  
-   - BCE loss + backward + optimizer step
-7. **Epoch Logları** – `loss`, dataset count, tower boyutları.
+1. **Seed & Config Parse** — set `experiment.seed` for reproducibility.  
+2. **Dataset Build** — apply min‑interaction thresholds; compute feature matrices; log counts.  
+3. **Train/Validation Split** — hold out the latest interaction per user (warns and skips if no timestamps).  
+4. **Tower Construction** — config → builders → `TowerEncoder` (log dimensions).  
+5. **Optimizer Setup** — Adam/AdamW/SGD for dense params; `SparseAdam` for sparse embeddings.  
+6. **Mini‑batch Loop**  
+   - Negative sampling (`sample_negative_items`)  
+   - User/item embeddings; positive & negative logits  
+   - BCE loss → backward → optimizer step  
+7. **Epoch Logs** — loss, dataset sizes, tower dims.
 
 ### 4.2 Evaluation & Diagnostics
 
-| Adım | Açıklama |
-|------|----------|
-| **Ranking Metrics** | `_evaluate_model` limited aday havuzu (pozitif + rastgele negatif) kullanır, Recall/Precision/NDCG/MAP hesaplar. |
-| **Embedding Diagnostics** | Norm dağılımları, item komşuluk kategorileri, kullanıcı embedding ↔ metadata uyumu. |
-| **Feature Correlations** | Pearson r + p-value ile skor vs. metadata ilişkisi; en anlamlı özellikler raporda listelenir. |
-| **Qualitative Recommendations** | Örnek kullanıcılar için top-K öneriler, kategori/yazar isabet oranı. |
-| **Markdown Report** | Yukarıdakilerin hepsi `artifacts/reports/recommendation_report.md` dosyasında toplanır. |
+| Step | What it does |
+|---|---|
+| **Ranking Metrics** | `_evaluate_model` uses a limited candidate pool (positives + random negatives) to compute Recall/Precision/NDCG/MAP. |
+| **Embedding Diagnostics** | Norm distributions; nearest‑neighbor category cohesion; user embedding ↔ metadata alignment. |
+| **Feature Correlations** | Pearson **r** + **p**‑value between scores and metadata; top informative features reported. |
+| **Qualitative Recommendations** | Example top‑K recommendations per user with category/author hit ratios. |
+| **Markdown Report** | Everything above lands in `artifacts/reports/recommendation_report.md`. |
 
-> **Tip:** Aday havuzu rastgele örneklerden oluştuğu için `evaluation.candidate_samples` değerini yükselterek doğruluğu artırabilirsiniz (daha pahalı).
+> **Tip:** Because evaluation uses sampled negatives, increasing `evaluation.candidate_samples` improves fidelity (at higher cost).
 
 ---
 
-## 5. Configuration Cheat Sheet
+## 5) Configuration Cheat Sheet
 
 ```yaml
 data:
-  books_limit: null                # null/None → tamamını yükle
+  books_limit: null                # null/None → load all
   interactions_limit: null
   min_user_interactions: 5
   min_item_interactions: 10
@@ -113,7 +112,7 @@ model:
       output_dim: 96
       dropout: 0.1
     fusion: adaptive_mimic
-  item_encoder: { ... }            # kullanıcı kulesiyle benzer yapı
+  item_encoder: { ... }            # mirrors user tower
   similarity: "cosine"
   device: "cpu"
 
@@ -137,58 +136,64 @@ diagnostics:
 
 ---
 
-## 6. Practical Tips & Caveats
+## 6) Practical Tips & Caveats
 
-| Senaryo | Yapılması gereken | Neden |
-|---------|-------------------|-------|
-| **Büyük veri dosyaları** | `books_limit` / `interactions_limit` ile önce küçük örnekler deneyin | Bellek taşmalarını önler |
-| **Aşırı filtre sonucu veri kalmadı** | `min_user/item_interactions` değerlerini düşürün veya daha fazla satır yükleyin | Subsample edilmiş veriyle 5/10 eşiği agresif olabilir |
-| **Kategori/Author feature genişliği** | One-hot yerine embedding (ör. 32-64 boyut) planlayın | Parametre yükü azalır, semantik benzerlik yakalanır |
-| **SparseAdam kullanımı** | `sparse=True` olmayan embedding’lerde çalışmaz | Yanlış kombinasyon training’i patlatır |
-| **Raporları paylaşma** | Markdown → HTML/PDF dönüştürmek kolay; CI’de otomatik üretilebilir | Ekip içi görünürlük artar |
-
----
-
-## 7. Quick Metrics Dashboard
-
-| Metrik | Anlamı | İzleme önerisi |
-|--------|--------|----------------|
-| **Recall@K / Precision@K** | Önerilerin doğruluğu | Popülerlik baselines’ı ile kıyasla |
-| **NDCG@K** | Doğru ürünlerin üst sıralara yerleşmesi | Düşüş varsa skor fonksiyonunu gözden geçir |
-| **Hit Rate@K** | Kullanıcıya en az bir doğru ürün önerilmiş mi | Müşteri memnuniyeti proxy’si |
-| **MAP@K** | Toplam sıralama kalitesi | Özellikle uzun kuyruk kullanıcılar için değerli |
-| **Feature Corr (r/p)** | Metadata sinyallerinin skorla ilişkisi | Anlamsız (yüksek p) özellikleri temizle |
-| **Category/Author Match** | Kullanıcının tarihi tercihlerine uyum | Adaptive mimic veya metadata pipeline’ını tune et |
+| Scenario | What to do | Why |
+|---|---|---|
+| **Very large CSVs** | Start with `books_limit` / `interactions_limit`. | Avoids OOM and speeds up iteration. |
+| **Over‑filtering leaves too little data** | Lower `min_user_interactions` / `min_item_interactions` or load more rows. | 5/10 thresholds can be aggressive on subsamples. |
+| **Wide category/author features** | Prefer learned embeddings (e.g., 32–64 dims) over one‑hot. | Reduces params; captures semantic similarity. |
+| **Using SparseAdam** | Ensure the embedding layers are created with `sparse=True`. | Wrong combo will break training. |
+| **Sharing reports** | Convert Markdown to HTML/PDF; automate in CI. | Improves visibility across the team. |
 
 ---
 
-## 8. Next Enhancements
+## 7) Quick Metrics Dashboard
 
-1. Kategori/yazar embedding’lerine geçiş ve hashing/regularisation stratejileri.  
-2. Checkpoint + early stopping + hiperparametre taramaları için otomasyon.  
-3. Deney izleme (MLflow, W&B) + raporların CI pipeline’ına eklenmesi.  
-4. Servisleşme: eğitilmiş kuleleri, indeks map’leri ile birlikte REST/GRPC API’ye taşımak.
-
----
-
-## 9. Glossary
-
-- **Two-Tower Model:** Kullanıcı ve ürün embedding’lerinin benzerlik üzerinden karşılaştırıldığı öneri mimarisi.  
-- **Negative Sampling:** Rastgele eşleşme üretip modele “bu etkileşim olmadı” diyerek ayrım gücü kazandırmak.  
-- **Adaptive Mimic:** Metadata ve ID embedding’lerini dinamik olarak harmanlayan kapı mekanizması.  
-- **Hybrid Optimisation:** Aynı anda hem dense (Adam/AdamW) hem sparse (SparseAdam) parametreleri optimize etme.  
-- **Ranking Metrics:** Recommendation kalitesini ölçen metrik seti (Recall, Precision, NDCG, MAP, Hit Rate).  
-- **Feature Correlation Test:** Skor ile özellik kolonu arasındaki Pearson r/p-value analizi; aşırı/yan etkileri tespit eder.
+| Metric | Meaning | Tracking suggestion |
+|---|---|---|
+| **Recall@K / Precision@K** | Top‑K correctness. | Compare against popularity baselines. |
+| **NDCG@K** | How high true items rank. | If dropping, revisit scoring function/negatives. |
+| **Hit Rate@K** | At least one correct item in Top‑K. | Proxy for user satisfaction. |
+| **MAP@K** | Overall ranking quality. | Especially useful for long‑tail users. |
+| **Feature Corr (r/p)** | Relation between metadata and scores. | Drop features with weak or noisy signals (high p). |
+| **Category/Author Match** | Alignment with user history. | Tune adaptive‑mimic and metadata pipeline. |
 
 ---
 
-## 10. Quick Start Checklist
+## 8) Next Enhancements
 
-1. `pip install -e .[dev]` ile bağımlılıkları kur.
-2. `data/` klasörüne `books.csv` & `users.csv` dosyalarını yerleştir.
-3. `python scripts/preprocess.py --config configs/default.yaml` çalıştır; log’lardaki kullanıcı/ürün sayısını kontrol et.
-4. `python scripts/train.py --config configs/default.yaml` ile eğit.
-5. `artifacts/reports/recommendation_report.md` dosyasını incele – metrikler, embedding diagnostikleri, feature corr tabloları ve örnek öneriler burada.
+1. Switch category/author to embedding features with hashing/regularization strategies.  
+2. Automate checkpoints, early stopping, and hyper‑parameter sweeps.  
+3. Experiment tracking (MLflow/W&B) + push reports into CI pipelines.  
+4. Serving: export towers + index maps behind a REST/gRPC API.
 
-Hazırsınız – iyi deneyler!
+---
 
+## 9) Glossary
+
+- **Two‑Tower Model:** Recommender architecture that compares user/item embeddings via similarity.  
+- **Negative Sampling:** Generate random mismatches to teach the model “this interaction didn’t happen.”  
+- **Adaptive Mimic:** A gating mechanism that blends metadata and ID embeddings dynamically.  
+- **Hybrid Optimization:** Train dense parameters (Adam/AdamW) and sparse embeddings (SparseAdam) together.  
+- **Ranking Metrics:** Metrics for recommendation quality (Recall, Precision, NDCG, MAP, Hit Rate).  
+- **Feature Correlation Test:** Pearson r/p‑value between scores and features to detect drivers and side‑effects.
+
+---
+
+## 10) Quick Start Checklist
+
+1. Install dependencies (CPU default):
+   ```bash
+   pip install -e .[dev]
+
+   # GPU-enabled (use the CUDA tag that matches your driver)
+   pip install -e .[dev,gpu] --extra-index-url https://download.pytorch.org/whl/cu121
+   ```
+   Use the PyTorch install matrix to pick the correct CUDA wheel index (cu118, cu121, cu124, ...).
+2. Put `books.csv` & `users.csv` into `data/`.  
+3. Preprocess: `python scripts/preprocess.py --config configs/default.yaml` (verify user/item counts in logs).  
+4. Train: `python scripts/train.py --config configs/default.yaml`  
+5. Review the report at `artifacts/reports/recommendation_report.md` — metrics, embedding diagnostics, feature‑correlation tables, and sample recommendations.
+
+You’re ready—happy experimenting!
