@@ -41,36 +41,89 @@ class FeatureMetadata:
     text_mean: list[float]
     text_std: list[float]
     category_vocab: list[str]
+    category_depths: list[int]
     author_vocab: list[str]
     feature_dim: int
 
     def feature_names(self) -> list[str]:
         """Return feature names in the order they appear in item/user matrices."""
         names: list[str] = []
-        names.extend(f"numeric:{col}" for col in self.numeric_columns)
-        names.extend(f"text:{col}" for col in self.text_columns)
         names.extend(f"category:{cat}" for cat in self.category_vocab)
         names.extend(f"author:{author}" for author in self.author_vocab)
+        names.extend(f"numeric:{col}" for col in self.numeric_columns)
+        names.extend(f"text:{col}" for col in self.text_columns)
         return names
 
 
-def _parse_categories(raw_value: str | float | None) -> list[str]:
-    if pd.isna(raw_value):
+def _coerce_category_paths(raw_value: str | float | Sequence[str] | None) -> list[list[str]]:
+    if raw_value is None or (isinstance(raw_value, float) and pd.isna(raw_value)):
         return []
-    if isinstance(raw_value, list):
-        return [str(item).strip() for item in raw_value if str(item).strip()]
+    container = raw_value
     if isinstance(raw_value, str):
         text = raw_value.strip()
         if not text:
             return []
         try:
-            parsed = ast.literal_eval(text)
-            if isinstance(parsed, list):
-                return [str(item).strip() for item in parsed if str(item).strip()]
+            container = ast.literal_eval(text)
         except (ValueError, SyntaxError):
-            pass
-        return [part.strip() for part in text.split(",") if part.strip()]
-    return []
+            return [[part.strip() for part in text.split(",") if part.strip()]]
+    if not isinstance(container, list):
+        as_text = str(container).strip()
+        return [[as_text]] if as_text else []
+
+    paths: list[list[str]] = []
+
+    if container and all(isinstance(item, (list, tuple)) for item in container):
+        for item in container:
+            path = [str(elem).strip() for elem in item if str(elem).strip()]
+            if path:
+                paths.append(path)
+        return paths
+
+    current_path = [str(item).strip() for item in container if str(item).strip()]
+    if current_path:
+        paths.append(current_path)
+        return paths
+
+    for item in container:
+        if isinstance(item, (list, tuple)):
+            path = [str(elem).strip() for elem in item if str(elem).strip()]
+            if path:
+                paths.append(path)
+        else:
+            text = str(item).strip()
+            if text:
+                paths.append([text])
+    return paths
+
+
+def parse_category_tokens(raw_value: str | float | Sequence[str] | None) -> list[str]:
+    """
+    Parse a raw category field into hierarchical tokens while dropping redundant roots.
+
+    Returns tokens that include the main category and progressively deeper paths joined
+    with ``" > "`` so that subcategories remain scoped to their parents (e.g.,
+    ``"History > Classic"``).
+    """
+    tokens: list[str] = []
+    for path in _coerce_category_paths(raw_value):
+        filtered = [cat for cat in path if cat and cat.lower() != "books"]
+        if not filtered:
+            continue
+        main = filtered[0]
+        tokens.append(main)
+        if len(filtered) > 1:
+            for depth in range(1, len(filtered)):
+                tokens.append(" > ".join([main] + filtered[1 : depth + 1]))
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    ordered_tokens: list[str] = []
+    for token in tokens:
+        if token in seen:
+            continue
+        seen.add(token)
+        ordered_tokens.append(token)
+    return ordered_tokens
 
 
 def _normalise_numeric(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -84,21 +137,32 @@ def _normalise_numeric(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.n
 
 def _build_category_matrix(
     categories: Sequence[list[str]], *, top_k: int
-) -> tuple[np.ndarray, list[str]]:
+) -> tuple[np.ndarray, list[str], list[int]]:
     counter: Counter[str] = Counter()
+    depth_lookup: dict[str, int] = {}
     for values in categories:
-        counter.update(values)
+        for cat in values:
+            counter[cat] += 1
+            depth_lookup.setdefault(cat, cat.count(" > "))
+
     vocab = [cat for cat, _ in counter.most_common(top_k) if cat]
     if not vocab:
-        return np.zeros((len(categories), 0), dtype=np.float32), []
+        return np.zeros((len(categories), 0), dtype=np.float32), [], []
+
     index = {cat: idx for idx, cat in enumerate(vocab)}
     matrix = np.zeros((len(categories), len(vocab)), dtype=np.float32)
+
     for row, values in enumerate(categories):
         for cat in values:
             idx = index.get(cat)
-            if idx is not None:
-                matrix[row, idx] = 1.0
-    return matrix, vocab
+            if idx is None:
+                continue
+            depth = depth_lookup.get(cat, cat.count(" > "))
+            weight = 1.0 / float(depth + 1)
+            matrix[row, idx] = max(matrix[row, idx], weight)
+
+    depths = [depth_lookup.get(cat, cat.count(" > ")) for cat in vocab]
+    return matrix, vocab, depths
 
 
 def _build_author_matrix(authors: Sequence[str], *, top_k: int) -> tuple[np.ndarray, list[str]]:
@@ -160,8 +224,8 @@ def build_item_feature_matrix(
         raw_categories = books["categories"]
     else:
         raw_categories = pd.Series([[] for _ in range(len(books))])
-    category_lists = raw_categories.apply(_parse_categories)
-    category_matrix, category_vocab = _build_category_matrix(
+    category_lists = raw_categories.apply(parse_category_tokens)
+    category_matrix, category_vocab, category_depths = _build_category_matrix(
         category_lists.tolist(), top_k=int(cfg.get("category_top_k", 500))
     )
 
@@ -176,10 +240,10 @@ def build_item_feature_matrix(
     )
 
     feature_parts = [
-        numeric_values,
-        title_stats,
         category_matrix,
         author_matrix,
+        numeric_values,
+        title_stats,
     ]
     features = (
         np.concatenate([part for part in feature_parts if part.size > 0], axis=1)
@@ -195,6 +259,7 @@ def build_item_feature_matrix(
         text_mean=text_mean,
         text_std=text_std,
         category_vocab=category_vocab,
+        category_depths=category_depths,
         author_vocab=author_vocab,
         feature_dim=int(features.shape[1]),
     )

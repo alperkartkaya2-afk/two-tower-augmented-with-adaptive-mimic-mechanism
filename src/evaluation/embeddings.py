@@ -9,17 +9,7 @@ import numpy as np
 import torch
 from loguru import logger
 
-
-def _parse_category_field(raw_value: str | Sequence[str] | float | None) -> list[str]:
-    if raw_value is None or (isinstance(raw_value, float) and np.isnan(raw_value)):
-        return []
-    if isinstance(raw_value, list):
-        return [str(v).strip() for v in raw_value if str(v).strip()]
-    text = str(raw_value)
-    if not text:
-        return []
-    cleaned = text.strip("[]")
-    return [part.strip().strip("'\"") for part in cleaned.split(",") if part.strip()]
+from src.data.features import parse_category_tokens
 
 
 def summarize_embedding_norms(embeddings: torch.Tensor, *, label: str) -> dict[str, float]:
@@ -64,14 +54,14 @@ def analyze_item_neighbors(
         similarities[idx] = -float("inf")
         neighbor_indices = torch.topk(similarities, k=k).indices.cpu().tolist()
 
-        base_categories = set(_parse_category_field(items_frame.iloc[idx]["categories"]))
+        base_categories = set(parse_category_tokens(items_frame.iloc[idx]["categories"]))
         if not base_categories:
             continue
 
         overlaps = 0
         for neighbor_idx in neighbor_indices:
             neighbor_categories = set(
-                _parse_category_field(items_frame.iloc[neighbor_idx]["categories"])
+                parse_category_tokens(items_frame.iloc[neighbor_idx]["categories"])
             )
             if base_categories & neighbor_categories:
                 overlaps += 1

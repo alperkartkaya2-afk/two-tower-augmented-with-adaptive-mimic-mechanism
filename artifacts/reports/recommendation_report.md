@@ -2,41 +2,41 @@
 
 ## Ranking Metrics
 
-- **Recall**: @5=0.2126, @10=0.3140, @20=0.4354
-- **Precision**: @5=0.0425, @10=0.0314, @20=0.0218
-- **NDCG**: @5=0.1463, @10=0.1790, @20=0.2093
-- **Hit Rate**: @5=0.2126, @10=0.3140, @20=0.4354
-- **MAP**: @5=0.1246, @10=0.1380, @20=0.1462
+- **Recall**: @5=0.3269, @10=0.4357, @20=0.5549
+- **Precision**: @5=0.0654, @10=0.0436, @20=0.0277
+- **NDCG**: @5=0.2393, @10=0.2745, @20=0.3045
+- **Hit Rate**: @5=0.3269, @10=0.4357, @20=0.5549
+- **MAP**: @5=0.2105, @10=0.2250, @20=0.2332
 
 ## Embedding Diagnostics
 
-- User embedding norms: mean=3.8558, std=1.1744, min=1.3944, max=8.0599
-- Item embedding norms: mean=3.9002, std=1.3561, min=1.6713, max=9.9059
-- Item neighbor category overlap (k=5): mean=1.0000, std=0.0000
-- User embedding vs. feature alignment (cosine): mean=0.9537, std=0.0355
+- User embedding norms: mean=5.0743, std=1.2102, min=2.6945, max=8.4061
+- Item embedding norms: mean=2.8842, std=0.4557, min=2.1046, max=3.4912
+- Item neighbor category overlap (k=5): mean=0.3200, std=0.0980
+- User embedding vs. feature alignment (cosine): mean=0.6967, std=0.2825
 
 ## Sample User Recommendations
 
-- **User** `AHZRA3GNQGYRU2VGE6WSI3OEYXQA` | category match 100.00% | author match 0.00%
-  - Historical categories: Books, Genre Fiction, Literature & Fiction, Mystery, Thriller & Suspense
-  1. ["The Secret Wife: A captivating story of romance, passion and mystery: Love. Guilt. Heartbreak."] (B01D4O804G) — author: Gill Paul | categories: Books, Genre Fiction, Literature & Fiction
-  2. ["The Atlantis Gene: A Thriller (The Origin Mystery, Book 1)"] (B00C2WDD5I) — author: A.G. Riddle | categories: Action & Adventure, Books, Literature & Fiction
-  3. ["The Storyteller's Secret: A Novel"] (B07415PPP1) — author: Sejal Badani | categories: Books, Genre Fiction, Literature & Fiction
-  4. ["The Nightingale: A Novel"] (B00JO8PEN2) — author: Kristin Hannah | categories: Books, Genre Fiction, Literature & Fiction
-  5. ["Winter of the World (The Century Trilogy, Book 2)"] (B007FEFLTO) — author: Ken Follett | categories: Books, Genre Fiction, Literature & Fiction
+- **User** `AGGSN7U6X3BUAX7KSVIIWPR446UQ` | category match 100.00% | author match 0.00%
+  - Historical categories: Literature & Fiction, Literature & Fiction > Genre Fiction, Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  1. ["The Atlantis Gene: A Thriller (The Origin Mystery, Book 1)"] (B00C2WDD5I) — author: A.G. Riddle | categories: Literature & Fiction, Literature & Fiction > Action & Adventure
+  2. ["The Short Drop (Gibson Vaughn)"] (B00YTXTIDO) — author: Matthew FitzSimmons | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  3. ["Silent Child"] (B01MUDRSND) — author: Sarah A. Denzil | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  4. ["Blood Defense (Samantha Brinkman Book 1)"] (B0146LBFIE) — author: Marcia Clark | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  5. ["I Am Watching You"] (B06Y1264PX) — author: Teresa Driscoll | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
 
-- **User** `AFATOKLVBODEATXMCDQJAFOEU67Q` | category match 100.00% | author match 20.00%
-  - Historical categories: Books, Children's Books, Early Learning, Literature & Fiction, Science Fiction & Fantasy
-  1. ["Oh, the Places You'll Go!"] (0679805273) — author: Dr. Seuss | categories: Books, Children's Books, Classics
-  2. ["Chicka Chicka Boom Boom (Board Book)"] (1442450703) — author: John Archambault | categories: Books, Children's Books, Literature & Fiction
-  3. ["Dragons Love Tacos"] (0803736800) — author: Adam Rubin | categories: Books, Children's Books, Fairy Tales, Folk Tales & Myths
-  4. ["Love You Forever"] (0920668372) — author: Robert Munsch | categories: Books, Children's Books, Classics
-  5. ["Goodnight Moon"] (0694003611) — author: Margaret Wise Brown | categories: Animals, Books, Children's Books
+- **User** `AEJLH6OU7LDKT45DNE7WL7OELPAA` | category match 100.00% | author match 0.00%
+  - Historical categories: Arts & Photography, Arts & Photography > Other Media, Children's Books, Children's Books > Holidays & Celebrations, Children's Books > Literature & Fiction
+  1. ["Secret Garden: An Inky Treasure Hunt and Coloring Book for Adults"] (1780671067) — author: Johanna Basford | categories: Arts & Photography, Arts & Photography > Graphic Design
+  2. ["Dragons Love Tacos"] (0803736800) — author: Adam Rubin | categories: Children's Books, Children's Books > Fairy Tales, Folk Tales & Myths
+  3. ["Oh, the Places You'll Go!"] (0679805273) — author: Dr. Seuss | categories: Children's Books, Children's Books > Classics
+  4. ["Creative Haven Creative Cats Coloring Book (Adult Coloring)"] (0486789640) — author: Marjorie Sarnat | categories: Arts & Photography, Arts & Photography > Graphic Design
+  5. ["Ball Complete Book of Home Preserving"] (0778801314) — author: Judi Kingry | categories: Cookbooks, Food & Wine, Cookbooks, Food & Wine > Canning & Preserving
 
-- **User** `AED67WQUU6BD62GROYBT4XCYVXUQ` | category match 100.00% | author match 40.00%
-  - Historical categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
-  1. ["Gathering Prey (The Prey Series Book 25)"] (B00O2BKKUS) — author: John Sandford | categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
-  2. ["Sycamore Row: A Novel (Jake Brigance Book 2)"] (B00CNQ7HAU) — author: John Grisham | categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
-  3. ["The Innocent (Will Robie Book 1)"] (B006VFLIYK) — author: David Baldacci | categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
-  4. ["The Last Mile (Amos Decker Book 2)"] (B016JC0THQ) — author: David Baldacci | categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
-  5. ["Rogue Lawyer: A Novel"] (B00UEKRTW8) — author: John Grisham | categories: Books, Mystery, Thriller & Suspense, Thrillers & Suspense
+- **User** `AFHIKYJNFMEIIDPBNCT44R2O6KCA` | category match 100.00% | author match 20.00%
+  - Historical categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  1. ["Gathering Prey (The Prey Series Book 25)"] (B00O2BKKUS) — author: John Sandford | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  2. ["The Last Man: A Novel (Mitch Rapp Book 13)"] (B007HACDLK) — author: Vince Flynn | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  3. ["The Gods of Guilt (A Lincoln Lawyer Novel Book 5)"] (B00BAXFACO) — author: Michael Connelly | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  4. ["The Survivor (Mitch Rapp Book 14)"] (B00UDCI7RI) — author: Vince Flynn | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense
+  5. ["Zero Day (John Puller Book 1)"] (B004TI5N38) — author: David Baldacci | categories: Mystery, Thriller & Suspense, Mystery, Thriller & Suspense > Thrillers & Suspense

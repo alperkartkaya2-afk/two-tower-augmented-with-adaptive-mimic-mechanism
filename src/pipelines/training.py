@@ -26,6 +26,7 @@ from src.data import (
     load_dataset,
     sample_negative_items,
 )
+from src.data.features import parse_category_tokens
 from src.models import TwoTowerModel, build_tower_encoder
 from src.evaluation import (
     analyze_item_neighbors,
@@ -141,22 +142,6 @@ def _collect_parameter_groups(
     return dense_params, sparse_params
 
 
-def _parse_categories(value: Any) -> set[str]:
-    if value is None:
-        return set()
-    if isinstance(value, list):
-        return {str(v).strip() for v in value if str(v).strip()}
-    text = str(value)
-    if not text:
-        return set()
-    cleaned = text.strip("[]")
-    return {
-        part.strip().strip("'\"")
-        for part in cleaned.split(",")
-        if part.strip().strip("'\"")
-    }
-
-
 def _build_user_profiles(training_dataset) -> dict[int, dict[str, set[str]]]:
     items_lookup = training_dataset.items.set_index("item_idx")
     profiles: dict[int, dict[str, set[str]]] = {}
@@ -167,7 +152,7 @@ def _build_user_profiles(training_dataset) -> dict[int, dict[str, set[str]]]:
             if item_idx not in items_lookup.index:
                 continue
             row = items_lookup.loc[item_idx]
-            categories.update(_parse_categories(row.get("categories")))
+            categories.update(parse_category_tokens(row.get("categories")))
             author = row.get("author")
             if isinstance(author, str) and author:
                 authors.add(author.strip())
@@ -391,17 +376,32 @@ def _evaluate_model(
 
             per_user_ground_truth[int(user_idx)] = ground_truth
 
+            #blocked_items = set(train_positive_map.get(int(user_idx), set()))
+            #blocked_items.update(ground_truth)
+            #candidates = set(ground_truth)
+
+            #while len(candidates) - len(ground_truth) < candidate_samples:
+            #    sampled = int(rng.integers(num_items))
+            #    if sampled in blocked_items or sampled in candidates:
+            #        continue
+            #    candidates.add(sampled)
+
+            #candidate_list = list(candidates)
+            
             blocked_items = set(train_positive_map.get(int(user_idx), set()))
             blocked_items.update(ground_truth)
+
+            remaining = list(set(range(num_items)) - blocked_items)
+            neg_budget = max(0, min(candidate_samples, len(remaining)))
+            if neg_budget > 0:
+                negatives = rng.choice(remaining, size=neg_budget, replace=False).tolist()
+            else:
+                negatives = []
+
             candidates = set(ground_truth)
-
-            while len(candidates) - len(ground_truth) < candidate_samples:
-                sampled = int(rng.integers(num_items))
-                if sampled in blocked_items or sampled in candidates:
-                    continue
-                candidates.add(sampled)
-
+            candidates.update(negatives)
             candidate_list = list(candidates)
+            
             candidate_tensor = torch.tensor(candidate_list, device=device, dtype=torch.long)
             item_inputs = {"indices": candidate_tensor}
             if item_feature_tensor is not None and item_feature_tensor.numel() > 0:
@@ -483,7 +483,7 @@ def _log_recommendations(
             if item_idx not in items_df.index:
                 continue
             item_row = items_df.loc[item_idx]
-            categories = _parse_categories(item_row.get("categories"))
+            categories = set(parse_category_tokens(item_row.get("categories")))
             author = item_row.get("author") if isinstance(item_row.get("author"), str) else ""
             if categories & profile["categories"]:
                 category_matches += 1
