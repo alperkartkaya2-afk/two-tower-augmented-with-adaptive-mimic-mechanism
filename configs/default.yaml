@@ -8,10 +8,10 @@ data:
   users_file: "users.csv"
   cache_dir: "artifacts/cache"
   train_fraction: 0.9
-  books_limit: null
-  interactions_limit: null
-  min_user_interactions: 5
-  min_item_interactions: 10
+  books_limit: 5000000
+  interactions_limit: 1000000
+  min_user_interactions: 3
+  min_item_interactions: 5
   feature_params:
     numeric_columns: ["average_rating", "price", "rating_number"]
     category_top_k: 300
@@ -57,25 +57,25 @@ model:
   device: "cpu"
 
 training:
-  batch_size: 512
-  num_epochs: 10
+  batch_size: 2048
+  num_epochs: 5
   learning_rate: 0.001
   weight_decay: 0.0
   optimizer: "adam"
-  negatives_per_positive: 5
+  negatives_per_positive: 3
 
 evaluation:
   metrics_k: [5, 10, 20]
-  candidate_samples: 500
+  candidate_samples: 50
   holdout: "latest_per_user"
 
 recommendations:
-  sample_users: 3
+  sample_users: 2
   top_k: 5
 
 diagnostics:
-  item_sample_size: 50
-  user_sample_size: 500
+  item_sample_size: 10
+  user_sample_size: 100
   neighbor_k: 5
   report_path: "artifacts/reports/recommendation_report.md"
 
