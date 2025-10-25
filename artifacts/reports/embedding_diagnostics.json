@@ -1,0 +1,122 @@
+{
+  "embedding_stats": {
+    "user_norms": {
+      "label": "user",
+      "count": 100,
+      "mean": 7.450366973876953,
+      "std": 1.5896044969558716,
+      "min": 4.526978492736816,
+      "max": 12.540645599365234,
+      "median": 7.186772346496582
+    },
+    "item_norms": {
+      "label": "item",
+      "count": 10,
+      "mean": 3.1077377796173096,
+      "std": 0.5801101326942444,
+      "min": 2.0455667972564697,
+      "max": 4.114909648895264,
+      "median": 3.049234390258789
+    },
+    "item_neighbor_overlap": {
+      "sampled_items": 10,
+      "category_overlap_mean": 0.2,
+      "category_overlap_std": 0.15491933384829668,
+      "k": 5
+    },
+    "user_alignment": {
+      "aligned_users": 100,
+      "cosine_mean": 0.9207360148429871,
+      "cosine_std": 0.06392163783311844
+    }
+  },
+  "adaptive_mimic": {
+    "user": {
+      "mean_norm": 0.5078839063644409,
+      "std_norm": 0.07691364735364914
+    },
+    "item": {
+      "mean_norm": 0.548423171043396,
+      "std_norm": 0.08934193849563599
+    }
+  },
+  "feature_correlations": [
+    {
+      "feature": "numeric:average_rating",
+      "pearson_r": -0.6618139034046697,
+      "p_value": 0.03711737369322638
+    },
+    {
+      "feature": "category:Children's Books > Activities, Crafts & Games",
+      "pearson_r": 0.5787245280390968,
+      "p_value": 0.07962869236418973
+    },
+    {
+      "feature": "text:title_char_count",
+      "pearson_r": 0.5450200272678658,
+      "p_value": 0.1032621367656326
+    },
+    {
+      "feature": "category:Mystery, Thriller & Suspense",
+      "pearson_r": -0.5261492137553784,
+      "p_value": 0.11823527160293995
+    },
+    {
+      "feature": "category:Mystery, Thriller & Suspense > Thrillers & Suspense",
+      "pearson_r": -0.5261492137553784,
+      "p_value": 0.11823527160293995
+    },
+    {
+      "feature": "numeric:rating_number",
+      "pearson_r": -0.4712027931541959,
+      "p_value": 0.16922790437234983
+    },
+    {
+      "feature": "text:title_word_count",
+      "pearson_r": 0.4243463894049054,
+      "p_value": 0.22160844274969657
+    },
+    {
+      "feature": "category:Cookbooks, Food & Wine",
+      "pearson_r": 0.3976321795907917,
+      "p_value": 0.2551523534295889
+    },
+    {
+      "feature": "category:Cookbooks, Food & Wine > Beverages & Wine",
+      "pearson_r": 0.3976321795907917,
+      "p_value": 0.2551523534295889
+    },
+    {
+      "feature": "category:Children's Books > Animals",
+      "pearson_r": -0.30667919526623116,
+      "p_value": 0.38875429330346206
+    },
+    {
+      "feature": "category:Humor & Entertainment",
+      "pearson_r": 0.2690696391574548,
+      "p_value": 0.45220400677467415
+    },
+    {
+      "feature": "category:Humor & Entertainment > Puzzles & Games",
+      "pearson_r": 0.2690696391574548,
+      "p_value": 0.45220400677467415
+    },
+    {
+      "feature": "author:Brad Meltzer",
+      "pearson_r": 0.2690696391574548,
+      "p_value": 0.45220400677467415
+    },
+    {
+      "feature": "numeric:price",
+      "pearson_r": 0.2675901043719015,
+      "p_value": 0.4547905259494457
+    },
+    {
+      "feature": "category:Children's Books",
+      "pearson_r": 0.20403399957964913,
+      "p_value": 0.5717965525385033
+    }
+  ],
+  "monitor_metric": "recall@10",
+  "best_epoch": 7
+}

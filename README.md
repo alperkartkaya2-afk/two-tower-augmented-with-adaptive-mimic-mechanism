@@ -68,10 +68,13 @@ Lean project scaffold for building a production-ready two-tower recommender tail
 - Offline ranking metrics (recall/precision/NDCG/MAP) are computed via candidate sampling and logged after training.
 - Embedding diagnostics (norm summaries, neighbor category overlap, user-feature alignment) and qualitative recommendation audits are written to `artifacts/reports/recommendation_report.md`.
 - Recommendation previews include category/author match rates against each sampled user's historical interests.
+- Loss curves for train/validation/test splits are rendered to `artifacts/reports/loss_curve.png` and embedded into the Markdown report for quick drift spotting.
+- A machine-readable diagnostic snapshot (gate statistics, feature correlations, norm stats) is exported to `artifacts/reports/embedding_diagnostics.json` on every run.
+- Hyperparameter/optimiser sweeps append aggregate tables to `artifacts/reports/benchmark_summary.md` so benchmarking stays repeatable.
 
 ## Next Steps
-- Benchmark large-scale runs (SparseAdam vs. hybrid optimisers) and tune embedding/feature dimensions.
-- Add checkpointing, early stopping, and hyperparameter sweeps to `src/pipelines/training.py`.
+- Wire benchmark sweeps (SparseAdam vs. hybrid) into CI/CD and capture throughput/latency telemetry alongside ranking metrics.
+- Stand up a lightweight inference service that can load the saved checkpoints and stream top-K recommendations.
 - Expand automated tests and add fixtures covering recommendation reports, per-user metrics, and embedding diagnostics.
 
 ## A Critique of The Model

@@ -16,3 +16,4 @@ def test_compute_ranking_metrics():
     assert metrics.precision[1] == 0.5
     assert metrics.hit_rate[1] == 0.5
     assert metrics.recall[3] > metrics.recall[1]
+    assert abs(metrics.mrr - 0.75) < 1e-6

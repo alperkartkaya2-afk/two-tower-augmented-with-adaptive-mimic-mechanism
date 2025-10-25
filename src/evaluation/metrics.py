@@ -15,6 +15,7 @@ class RankingMetrics:
     ndcg: dict[int, float]
     hit_rate: dict[int, float]
     map: dict[int, float]
+    mrr: float
     per_user: list[dict[str, float]]
 
 
@@ -52,6 +53,7 @@ def per_user_metrics(
 ) -> dict[str, float]:
     metrics: dict[str, float] = {}
     k_sorted = sorted(k_values)
+    max_k = max(k_sorted) if k_sorted else len(predicted)
     for k in k_sorted:
         topk = predicted[:k]
         hits = len(set(topk) & ground_truth)
@@ -60,6 +62,12 @@ def per_user_metrics(
         metrics[f"hit_rate@{k}"] = 1.0 if hits > 0 else 0.0
         metrics[f"ndcg@{k}"] = _ndcg_at_k(predicted, ground_truth, k)
         metrics[f"map@{k}"] = _average_precision(predicted, ground_truth, k)
+    reciprocal_rank = 0.0
+    for idx, item in enumerate(predicted[:max_k], start=1):
+        if item in ground_truth:
+            reciprocal_rank = 1.0 / idx
+            break
+    metrics["mrr"] = reciprocal_rank
     return metrics
 
 
@@ -74,6 +82,7 @@ def compute_ranking_metrics(
     hit_rates: dict[int, list[float]] = {k: [] for k in k_values}
     maps: dict[int, list[float]] = {k: [] for k in k_values}
     per_user_results: list[dict[str, float]] = []
+    mrr_scores: list[float] = []
 
     for user_idx, prediction in per_user_predictions.items():
         ground_truth = per_user_ground_truth.get(user_idx, set())
@@ -87,6 +96,7 @@ def compute_ranking_metrics(
             ndcgs[k].append(metrics[f"ndcg@{k}"])
             hit_rates[k].append(metrics[f"hit_rate@{k}"])
             maps[k].append(metrics[f"map@{k}"])
+        mrr_scores.append(metrics["mrr"])
 
     def _aggregate(values: Iterable[float]) -> float:
         arr = list(values)
@@ -100,7 +110,7 @@ def compute_ranking_metrics(
         ndcg={k: _aggregate(ndcgs[k]) for k in k_values},
         hit_rate={k: _aggregate(hit_rates[k]) for k in k_values},
         map={k: _aggregate(maps[k]) for k in k_values},
+        mrr=_aggregate(mrr_scores),
         per_user=per_user_results,
     )
     return summary
-

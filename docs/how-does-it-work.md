@@ -51,8 +51,9 @@ Each step below includes **tech details** and **why it matters** callouts.
 |---|---|---|
 | **ID Embeddings** (`build_id_embedding`) | 96‑dim tables for users/items; `sparse=True` supported. | Scales easily; memory‑friendly with `SparseAdam`. |
 | **Feature Encoders** (`build_feature_encoder`) | Encodes metadata vectors via MLP 192 → 96 (optional dropout). | Balances collaborative signals with metadata. |
-| **Adaptive Mimic** (`AdaptiveMimicModule`) | Fuses ID + metadata embeddings via a learned gate. | Especially strong for cold‑start users/items. |
-| **Tower Wrapper** (`TowerEncoder`) | Fusion mode (`identity`/`sum`/`concat`/`adaptive_mimic`) + device management. | Lets you swap tower fusion via config—not code edits. |
+| **Feature Fusion Gate** (`FeatureFusionGate`) | Learns how much metadata vs. ID embeddings should contribute. | Especially strong for cold‑start users/items. |
+| **Adaptive Mimic Mechanism** (`AdaptiveMimicMechanism`) | Adds trainable augmented vectors that mimic the opposite tower with stop‑gradient MSE. | Injects cross‑tower supervision and stabilises DAT training. |
+| **Tower Wrapper** (`TowerEncoder`) | Fusion mode (`identity`/`sum`/`concat`/`gated`) + device management. | Lets you swap tower fusion via config—not code edits. |
 | **TwoTowerModel** | Couples both towers and returns similarity (cosine or dot). | Train/eval code stays agnostic to tower internals. |
 
 > **Technical note:** With sparse embeddings, you can use `padding_idx`, but **do not** combine `sparse=True` with `max_norm`—PyTorch disallows that. Configuration guards against illegal combos.
@@ -72,7 +73,9 @@ Each step below includes **tech details** and **why it matters** callouts.
    - Negative sampling (`sample_negative_items`)  
    - User/item embeddings; positive & negative logits  
    - BCE loss → backward → optimizer step  
-7. **Epoch Logs** — loss, dataset sizes, tower dims.
+7. **Loss Tracking** — compute train/validation/test BCE (when available) and persist epoch histories for plotting.  
+8. **Early Stopping & Checkpointing** — configurable patience/min-delta on any validation metric; best checkpoints (plus optional per-epoch/last snapshots) saved to `artifacts/checkpoints/`.  
+9. **Hyperparameter Sweeps** — optional `experiment.grid` drives Cartesian sweeps (e.g. SparseAdam vs. hybrid optimisers, embedding dims) with aggregated results in `artifacts/reports/benchmark_summary.md`.
 
 ### 4.2 Evaluation & Diagnostics
 
@@ -82,7 +85,10 @@ Each step below includes **tech details** and **why it matters** callouts.
 | **Embedding Diagnostics** | Norm distributions; nearest‑neighbor category cohesion; user embedding ↔ metadata alignment. |
 | **Feature Correlations** | Pearson **r** + **p**‑value between scores and metadata; top informative features reported. |
 | **Qualitative Recommendations** | Example top‑K recommendations per user with category/author hit ratios. |
-| **Markdown Report** | Everything above lands in `artifacts/reports/recommendation_report.md`. |
+| **Markdown Report** | Everything above lands in `artifacts/reports/recommendation_report.md`, including the loss curve image. |
+| **Loss Curves** | `artifacts/reports/loss_curve.png` charts train/val/test loss; embedded in the report. |
+| **Embedding Summary** | `artifacts/reports/embedding_diagnostics.json` captures gate statistics, feature correlations, and norm summaries for quick diffing between runs. |
+| **Benchmark Ledger** | `artifacts/reports/benchmark_summary.md` records optimiser/embedding sweeps with runtime + metric summaries. |
 
 > **Tip:** Because evaluation uses sampled negatives, increasing `evaluation.candidate_samples` improves fidelity (at higher cost).
 
@@ -91,9 +97,17 @@ Each step below includes **tech details** and **why it matters** callouts.
 ## 5) Configuration Cheat Sheet
 
 ```yaml
+experiment:
+  name: "baseline_two_tower"
+  seed: 1234
+  grid: {}
+  benchmark_report: "artifacts/reports/benchmark_summary.md"
+
 data:
   books_limit: null                # null/None → load all
   interactions_limit: null
+  train_fraction: 0.9
+  test_fraction: 0.1
   min_user_interactions: 5
   min_item_interactions: 10
   feature_params:
@@ -120,6 +134,19 @@ training:
   batch_size: 512
   num_epochs: 10
   negatives_per_positive: 5
+  gradient_clip_norm: null
+  early_stopping:
+    enabled: true
+    metric: "recall@10"
+    mode: "max"
+    patience: 3
+    min_delta: 0.0005
+  checkpointing:
+    enabled: true
+    dir: "artifacts/checkpoints"
+    save_best_only: true
+    keep_last: true
+    filename_template: "{experiment}_{metric}_{value:.4f}_epoch{epoch}.pt"
 
 evaluation:
   metrics_k: [5, 10, 20]
@@ -130,8 +157,10 @@ diagnostics:
   user_sample_size: 500
   neighbor_k: 5
   feature_corr_sample_size: 20000
-  feature_corr_top_k: 20
+  feature_corr_top_k: 15
   report_path: "artifacts/reports/recommendation_report.md"
+  loss_plot_path: "artifacts/reports/loss_curve.png"
+  embedding_summary_path: "artifacts/reports/embedding_diagnostics.json"
 ```
 
 ---

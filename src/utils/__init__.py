@@ -1,4 +1,8 @@
 """Utility helpers shared across modules."""
 
-from .config import load_config  # noqa: F401
-
+from .config import (  # noqa: F401
+    clone_config,
+    get_by_dotted_path,
+    load_config,
+    set_by_dotted_path,
+)

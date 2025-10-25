@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
+import warnings
 
 import torch
 from torch import nn
@@ -145,7 +146,7 @@ def build_feature_encoder(
     raise ValueError(f"Unsupported feature encoder type: {cfg.type}")
 
 
-class AdaptiveMimicModule(nn.Module):
+class FeatureFusionGate(nn.Module):
     """
     Blends ID embeddings with feature-derived representations using a gated mixer.
     """
@@ -179,7 +180,7 @@ class TowerEncoder(nn.Module):
         feature_encoder: FeatureEncoderWrapper | None,
         fusion: str,
         output_dim: int | None,
-        adaptive_mimic: AdaptiveMimicModule | None,
+        adaptive_mimic: FeatureFusionGate | None,
     ) -> None:
         super().__init__()
         self.embedding = embedding
@@ -190,11 +191,22 @@ class TowerEncoder(nn.Module):
         self.id_dim = embedding.embedding_dim
         self.output_dim = self.id_dim
 
-        if fusion not in {"identity", "sum", "concat", "adaptive_mimic"}:
+        fusion_key = fusion
+        if fusion_key == "adaptive_mimic":
+            warnings.warn(
+                "TowerEncoder fusion='adaptive_mimic' is deprecated; use fusion='gated' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            fusion_key = "gated"
+
+        if fusion_key not in {"identity", "sum", "concat", "gated"}:
             raise ValueError(f"Unsupported fusion strategy: {fusion}")
 
         if feature_encoder is None:
             self.fusion = "identity"
+        else:
+            self.fusion = fusion_key
 
         if self.fusion == "concat":
             target_dim = int(output_dim or (self.id_dim + feature_encoder.output_dim))
@@ -231,7 +243,7 @@ class TowerEncoder(nn.Module):
             combined = torch.cat([id_repr, feature_repr], dim=-1)
             return self.projection(combined)
 
-        if self.fusion == "adaptive_mimic":
+        if self.fusion == "gated":
             if self.adaptive_mimic is None:
                 raise ValueError("Adaptive mimic fusion requires a mimic module.")
             if feature_repr.shape[-1] != id_repr.shape[-1]:
@@ -282,7 +294,7 @@ def build_tower_encoder(
     )
 
     fusion = cfg.get(
-        "fusion", "adaptive_mimic" if feature_dim > 0 else "identity"
+        "fusion", "gated" if feature_dim > 0 else "identity"
     ).lower()
     output_dim = cfg.get("output_dim")
 
@@ -293,16 +305,16 @@ def build_tower_encoder(
     )
 
     # When fusion expects matching dimensions, force feature encoder output to match.
-    if fusion in {"sum", "adaptive_mimic"} and feature_encoder is not None:
+    if fusion in {"sum", "adaptive_mimic", "gated"} and feature_encoder is not None:
         if feature_encoder.output_dim != embedding.embedding_dim:
             raise ValueError(
-                "Feature encoder output dimension must equal embedding dimension for 'sum' or 'adaptive_mimic' fusion."
+                "Feature encoder output dimension must equal embedding dimension for 'sum' or 'gated' fusion."
             )
 
-    mimic_cfg = cfg.get("adaptive_mimic", {}) if fusion == "adaptive_mimic" else None
+    mimic_cfg = cfg.get("adaptive_mimic", {}) if fusion in {"adaptive_mimic", "gated"} else None
     mimic_module = None
     if mimic_cfg is not None:
-        mimic_module = AdaptiveMimicModule(
+        mimic_module = FeatureFusionGate(
             dim=embedding.embedding_dim,
             hidden_dim=mimic_cfg.get("hidden_dim"),
         )

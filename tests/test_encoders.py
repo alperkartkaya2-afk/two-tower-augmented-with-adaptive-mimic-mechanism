@@ -8,7 +8,7 @@ def test_build_tower_encoder_with_features():
         "type": "tower",
         "id_embedding": {"params": {"embedding_dim": 8}},
         "feature_encoder": {"type": "linear", "output_dim": 8},
-        "fusion": "adaptive_mimic",
+        "fusion": "gated",
         "adaptive_mimic": {"hidden_dim": 16},
     }
     encoder = build_tower_encoder(

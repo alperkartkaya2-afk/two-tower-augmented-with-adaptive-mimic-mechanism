@@ -19,40 +19,67 @@ def sample_negative_items(
     """
     Sample negative item indices for each user in the batch.
 
-    Parameters
-    ----------
-    user_indices:
-        Tensor containing user indices for the current batch.
-    num_items:
-        Total number of distinct item indices available.
-    positives:
-        Mapping of user index -> set of known positive item indices.
-    num_negatives:
-        Number of negatives to sample per user.
-    device:
-        Device on which the returned tensor should live.
+    Sampling is performed in torch so the operation remains vectorised and avoids
+    Python-level loops over candidate pools.
     """
     if num_negatives <= 0:
         raise ValueError("num_negatives must be greater than zero.")
+    if num_items <= 1:
+        raise ValueError("num_items must be greater than one.")
 
     batch_size = user_indices.shape[0]
     negatives = torch.empty(
         (batch_size, num_negatives), dtype=torch.long, device=device
     )
-
-    all_items = list(range(num_items))
+    cached_positive_tensors: dict[int, torch.Tensor] = {}
 
     for row, user_idx in enumerate(user_indices.tolist()):
-        positives_for_user = positives.get(int(user_idx), set())
-        available_items = [item for item in all_items if item not in positives_for_user]
-
-        if len(available_items) < num_negatives:
+        user_idx_int = int(user_idx)
+        positives_for_user = positives.get(user_idx_int, set())
+        if len(positives_for_user) >= num_items:
             raise RuntimeError(
-                f"Unable to sample {num_negatives} negatives for user {user_idx}; "
-                "not enough unseen items."
+                f"User {user_idx_int} interacted with all items; cannot sample negatives."
             )
 
-        sampled = random.sample(available_items, num_negatives)
-        negatives[row] = torch.as_tensor(sampled, dtype=torch.long, device=device)
+        if positives_for_user:
+            pos_tensor = cached_positive_tensors.get(user_idx_int)
+            if pos_tensor is None:
+                pos_tensor = torch.tensor(
+                    sorted(positives_for_user),
+                    device=device,
+                    dtype=torch.long,
+                )
+                cached_positive_tensors[user_idx_int] = pos_tensor
+        else:
+            pos_tensor = None
+
+        samples = torch.randint(
+            low=0,
+            high=num_items,
+            size=(num_negatives,),
+            device=device,
+            dtype=torch.long,
+        )
+
+        if pos_tensor is not None:
+            invalid = torch.isin(samples, pos_tensor)
+            attempts = 0
+            while invalid.any():
+                resample = torch.randint(
+                    low=0,
+                    high=num_items,
+                    size=(int(invalid.sum().item()),),
+                    device=device,
+                    dtype=torch.long,
+                )
+                samples[invalid] = resample
+                invalid = torch.isin(samples, pos_tensor)
+                attempts += 1
+                if attempts > 10:
+                    raise RuntimeError(
+                        "Exceeded resampling attempts while drawing negatives."
+                    )
+
+        negatives[row] = samples
 
     return negatives

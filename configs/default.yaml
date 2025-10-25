@@ -1,17 +1,20 @@
 experiment:
   name: "baseline_two_tower"
   seed: 1234
+  benchmark_report: "artifacts/reports/benchmark_summary.md"
+  grid: {}
 
 data:
   root: "data"
   books_file: "books.csv"
   users_file: "users.csv"
   cache_dir: "artifacts/cache"
-  train_fraction: 0.9
-  books_limit: 5000000
-  interactions_limit: 1000000
+  train_fraction: 0.85
+  test_fraction: 0.15
+  books_limit: null
+  interactions_limit: 2000000
   min_user_interactions: 3
-  min_item_interactions: 5
+  min_item_interactions: 6
   feature_params:
     numeric_columns: ["average_rating", "price", "rating_number"]
     category_top_k: 300
@@ -23,51 +26,77 @@ model:
     type: tower
     id_embedding:
       params:
-        embedding_dim: 96
+        embedding_dim: 128
         sparse: true
       init:
         type: normal
         std: 0.02
     feature_encoder:
       type: mlp
-      hidden_dims: [192]
+      hidden_dims: [256]
       activation: relu
-      output_dim: 96
-      dropout: 0.1
-    fusion: adaptive_mimic
-    output_dim: 96
+      output_dim: 128
+      dropout: 0.15
+    fusion: gated
+    output_dim: 128
   item_encoder:
     type: tower
     id_embedding:
       params:
-        embedding_dim: 96
+        embedding_dim: 128
         sparse: true
       init:
         type: normal
         std: 0.02
     feature_encoder:
       type: mlp
-      hidden_dims: [192]
+      hidden_dims: [256]
       activation: relu
-      output_dim: 96
-      dropout: 0.1
-    fusion: adaptive_mimic
-    output_dim: 96
+      output_dim: 128
+      dropout: 0.15
+    fusion: gated
+    output_dim: 128
   similarity: "cosine"
   device: "cpu"
+  adaptive_mimic:
+    enabled: true
+    init_std: 0.02
 
 training:
   batch_size: 2048
-  num_epochs: 5
+  num_epochs: 7
   learning_rate: 0.001
-  weight_decay: 0.0
-  optimizer: "adam"
-  negatives_per_positive: 3
+  weight_decay: 0.01
+  optimizer: "adamw"
+  negatives_per_positive: 5
+  gradient_clip_norm: null
+  loss_weights:
+    mimic_user: 0.15
+    mimic_item: 0.15
+    category_alignment: 0.01
+  early_stopping:
+    enabled: true
+    metric: "recall@10"
+    mode: "max"
+    patience: 2
+    min_delta: 0.0005
+  checkpointing:
+    enabled: true
+    dir: "artifacts/checkpoints"
+    save_best_only: true
+    keep_last: true
+    filename_template: "{experiment}_{metric}_{value:.4f}_epoch{epoch}.pt"
 
 evaluation:
   metrics_k: [5, 10, 20]
   candidate_samples: 50
   holdout: "latest_per_user"
+  faiss:
+    enabled: true
+    search_k_multiplier: 4
+    batch_size: 8192
+    index_path: "artifacts/faiss/items.index"
+    embedding_path: "artifacts/faiss/item_embeddings.npy"
 
 recommendations:
   sample_users: 2
@@ -78,6 +107,9 @@ diagnostics:
   user_sample_size: 100
   neighbor_k: 5
   report_path: "artifacts/reports/recommendation_report.md"
+  loss_plot_path: "artifacts/reports/loss_curve.png"
+  embedding_summary_path: "artifacts/reports/embedding_diagnostics.json"
+  feature_corr_top_k: 15
 
 logging:
   level: "INFO"

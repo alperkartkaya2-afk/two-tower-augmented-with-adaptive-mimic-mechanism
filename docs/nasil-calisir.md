@@ -51,8 +51,9 @@ Aşağıdaki her adım **teknik ayrıntılar** ve **neden önemli** notlarıyla 
 |---|---|---|
 | **ID Embedding’leri** (`build_id_embedding`) | Kullanıcı/ürün için 96‑boyutlu embedding tabloları; `sparse=True` destekli. | `SparseAdam` ile bellek dostu ve ölçeklenebilir. |
 | **Özellik Kodlayıcıları** (`build_feature_encoder`) | Metadata vektörünü MLP ile 192 → 96 kodlar (opsiyonel dropout). | Metadata ile collaborative sinyaller dengelenir. |
-| **Adaptive Mimic** (`AdaptiveMimicModule`) | ID + metadata embedding’lerini öğrenilebilir kapı (gate) ile harmanlar. | Cold‑start kullanıcı/ürünlerde büyük katkı sağlar. |
-| **Tower Encoder** (`TowerEncoder`) | Füzyon modu (`identity`/`sum`/`concat`/`adaptive_mimic`) + cihaz yönetimi. | Mimariyi yalnızca config ile değiştirebilirsiniz. |
+| **Özellik Füzyon Kapısı** (`FeatureFusionGate`) | Metadata vs. ID embedding katkısını öğrenir. | Cold‑start kullanıcı/ürünlerde büyük katkı sağlar. |
+| **Adaptive Mimic Mekanizması** (`AdaptiveMimicMechanism`) | Karşı kuleyi taklit eden stop‑gradient MSE ile güncellenen augment vektörleri ekler. | DAT eğitimini kararlı tutar ve kuleler arası sinyal taşır. |
+| **Tower Encoder** (`TowerEncoder`) | Füzyon modu (`identity`/`sum`/`concat`/`gated`) + cihaz yönetimi. | Mimariyi yalnızca config ile değiştirebilirsiniz. |
 | **TwoTowerModel** | İki kuleyi tek arayüzde birleştirir; benzerlik (cosine veya dot) döndürür. | Eğitim/değerlendirme kodu kule detayını bilmek zorunda kalmaz. |
 
 > **Teknik not:** Sparse embedding’lerde `padding_idx` kullanılabilir; fakat `sparse=True` ile `max_norm` birlikte kullanılamaz. Config, bu yasa dışı kombinasyonları engeller.
@@ -72,7 +73,9 @@ Aşağıdaki her adım **teknik ayrıntılar** ve **neden önemli** notlarıyla 
    - Negatif örnekleme (`sample_negative_items`)  
    - Kullanıcı/ürün embedding’leri; pozitif & negatif logit’ler  
    - BCE loss → backward → optimizer step  
-7. **Epoch Logları** — loss, veri seti boyutları, kule boyutları.
+7. **Kayıp Takibi** — train/validation/test BCE değerlerini (varsa) hesaplar ve grafik için saklar.  
+8. **Early Stopping & Checkpoint** — validation metriği için sabitlenebilir patience/min-delta; en iyi modeller (isteğe göre epoch/son sürümlerle birlikte) `artifacts/checkpoints/` klasörüne yazılır.  
+9. **Hiperparametre Sweep’leri** — `experiment.grid` tanımı ile (ör. SparseAdam vs. hibrit optimizer, embedding boyutu) Cartesian sweep çalıştırır ve sonuçları `artifacts/reports/benchmark_summary.md` dosyasında toplar.
 
 ### 4.2 Değerlendirme & Diagnostik
 
@@ -82,7 +85,10 @@ Aşağıdaki her adım **teknik ayrıntılar** ve **neden önemli** notlarıyla 
 | **Embedding Diagnostiği** | Norm dağılımları; en yakın komşu kategori uyumu; kullanıcı embedding ↔ metadata hizası. |
 | **Özellik Korelasyonları** | Skorlar ile metadata arasında Pearson **r** + **p** değeri; en bilgili özellikler raporda listelenir. |
 | **Nitel Öneriler** | Örnek kullanıcılar için Top‑K sonuçlar; kategori/yazar isabetleri. |
-| **Markdown Raporu** | Yukarıdaki tüm çıktılar `artifacts/reports/recommendation_report.md` dosyasında toplanır. |
+| **Markdown Raporu** | Yukarıdaki tüm çıktılar (loss grafiği dahil) `artifacts/reports/recommendation_report.md` dosyasında toplanır. |
+| **Kayıp Grafikleri** | `artifacts/reports/loss_curve.png` train/val/test kayıplarını çizer ve rapora eklenir. |
+| **Embedding Özeti** | `artifacts/reports/embedding_diagnostics.json` kapı istatistikleri, özellik korelasyonları ve norm özetlerini saklar; koşular arası kıyaslamayı kolaylaştırır. |
+| **Benchmark Günlüğü** | `artifacts/reports/benchmark_summary.md` optimizer/embedding sweep sonuçlarını çalışma süresi + metriklerle kaydeder. |
 
 > **İpucu:** Değerlendirme örneklenmiş negatifler kullandığı için `evaluation.candidate_samples` değerini artırmak doğruluğu artırır (maliyet de artar).
 
@@ -91,9 +97,17 @@ Aşağıdaki her adım **teknik ayrıntılar** ve **neden önemli** notlarıyla 
 ## 5. Konfigürasyon Hızlı Bakış
 
 ```yaml
+experiment:
+  name: "baseline_two_tower"
+  seed: 1234
+  grid: {}
+  benchmark_report: "artifacts/reports/benchmark_summary.md"
+
 data:
   books_limit: null                # null/None → tamamını yükle
   interactions_limit: null
+  train_fraction: 0.9
+  test_fraction: 0.1
   min_user_interactions: 5
   min_item_interactions: 10
   feature_params:
@@ -120,6 +134,19 @@ training:
   batch_size: 512
   num_epochs: 10
   negatives_per_positive: 5
+  gradient_clip_norm: null
+  early_stopping:
+    enabled: true
+    metric: "recall@10"
+    mode: "max"
+    patience: 3
+    min_delta: 0.0005
+  checkpointing:
+    enabled: true
+    dir: "artifacts/checkpoints"
+    save_best_only: true
+    keep_last: true
+    filename_template: "{experiment}_{metric}_{value:.4f}_epoch{epoch}.pt"
 
 evaluation:
   metrics_k: [5, 10, 20]
@@ -130,8 +157,10 @@ diagnostics:
   user_sample_size: 500
   neighbor_k: 5
   feature_corr_sample_size: 20000
-  feature_corr_top_k: 20
+  feature_corr_top_k: 15
   report_path: "artifacts/reports/recommendation_report.md"
+  loss_plot_path: "artifacts/reports/loss_curve.png"
+  embedding_summary_path: "artifacts/reports/embedding_diagnostics.json"
 ```
 
 ---
